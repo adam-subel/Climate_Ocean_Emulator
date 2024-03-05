@@ -162,9 +162,7 @@ def compute_vorticity(u,v,dx,dy,Nb,wet_lap):
 
 def get_domain_fft(wet):
     region_wet = [0,0,0,0]
-    
-    X = np.arange(4,Nx-4)
-    
+        
     for i in range(500):
         Nx = wet.shape[1]
         Ny = wet.shape[0]

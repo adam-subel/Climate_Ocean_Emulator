@@ -688,20 +688,6 @@ def compute_activity(N_eval,test_data,model_pred,clim,time,area,wet):
     return activity,auto_activity    
 
 
-def gen_KE_spectrum(N_eval,test_data,model_pred,grids,wet):
-    u_test = test_data[:][1][:,0]*std_out[0] +mean_out[0]
-    v_test = test_data[:][1][:,1]*std_out[1] +mean_out[1]
-
-    region_fft = get_domain_fft(wet)
-    dx_fft = grids["dxu"][region_fft[2]:region_fft[3],region_fft[0]:region_fft[1]]
-    dy_fft = grids["dyu"][region_fft[2]:region_fft[3],region_fft[0]:region_fft[1]]
-
-    KE_spec = KE_spectrum_long(dx_fft,dy_fft,model_pred[:N_eval,region_fft[2]:region_fft[3],region_fft[0]:region_fft[1],0]
-                     ,model_pred[:N_eval,region_fft[2]:region_fft[3],region_fft[0]:region_fft[1],1])
-    KE_spec_true = KE_spectrum_long(dx_fft,dy_fft,u_test[:N_eval,region_fft[2]:region_fft[3],region_fft[0]:region_fft[1]]
-                     ,v_test[:N_eval,region_fft[2]:region_fft[3],region_fft[0]:region_fft[1]])
-    return KE_spec, KE_spec_true
-
 
 def gen_enstrophy(N_eval,test_data,model_pred,dx,dy,Nb,wet_lap):
     data_out_cpu = np.array(test_data[:][1].cpu())*np.expand_dims(test_data.norm_vals['s_out'],[0,2,3])  + np.expand_dims(test_data.norm_vals['m_out'],[0,2,3])    
@@ -792,6 +778,8 @@ def compute_ACC_single(N_eval,test_data,model_pred,clim,time,area,wet):
     return corrs,auto_corrs
 
 def gen_KE_spectrum(N_eval,test_data,model_pred,grids,wet):
+    std_out = test_data.norm_vals['s_out']
+    mean_out = test_data.norm_vals['m_out']
     u_test = test_data[:][1][:,0]*std_out[0] +mean_out[0]
     v_test = test_data[:][1][:,1]*std_out[1] +mean_out[1]
 
@@ -806,7 +794,9 @@ def gen_KE_spectrum(N_eval,test_data,model_pred,grids,wet):
     return KE_spec, KE_spec_true
 
 
-def gen_enstrophy_spectrum(N_eval,test_data,model_pred,grids,wet,Nb=4):
+def gen_enstrophy_spectrum(N_eval,test_data,model_pred,grids,wet,wet_lap,Nb=4):
+    dx = grids["dxu"].to_numpy()
+    dy = grids["dyu"].to_numpy()
     pred_vort, true_vort = gen_vorticity(1000,test_data,model_pred,dx,dy,4,wet_lap)
     region_fft = get_domain_fft(wet[Nb:-Nb,Nb:-Nb])
     dx_fft = grids["dxu"][Nb:-Nb,Nb:-Nb][region_fft[2]:region_fft[3],region_fft[0]:region_fft[1]]
