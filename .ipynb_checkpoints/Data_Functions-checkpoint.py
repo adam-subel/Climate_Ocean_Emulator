@@ -613,3 +613,73 @@ def gen_data_025_lateral_subsurf(input_vars,extra_vars,output_vars,depth,lag,lat
     outputs = tuple(outputs)
 
     return inputs, extra_in, outputs
+
+def get_norms(region,inputs,extra_in,outputs,Lateral = True):
+    
+    if region == "Africa_Ext":
+        mean_dict = {"um":4.82752338e-2,"vm":1.1804e-2,"Tm":10.8398,"tau_u":6.83281880e-5,"tau_v":-1.04916221e-5,
+                   "t_ref":2.85715049e+2,"um_0":2.80994716e-02,"vm_0":1.1804e-2,"Tm_0":10.8398,
+                     "um_99":2.93019213e-02,"vm_99":-4.84687595e-03,"Tm_99":8.91647284,
+                     "um_253":2.49547245e-02,"vm_253":-4.48418542e-03,"Tm_253":6.77900864}
+        
+        std_dict = {"um":1.78659424e-1,"vm":1.62300227e-01,"Tm":8.35850152,"tau_u":1.32713360e-4,"tau_v":9.77289618e-5,
+                   "t_ref":7.38032223e+0,"um_0":1.78659424e-1,"vm_0":1.62300227e-01,"Tm_0":8.35850152,
+                     "um_99":0.14836239,"vm_99":0.14007329,"Tm_99":7.49790942,
+                     "um_253":0.13086694,"vm_253":0.12258011,"Tm_253":5.91231414}
+    
+    elif region == "Gulf_Stream_Ext":
+        mean_dict = {"um":4.48291145e-02,"vm":-1.05211059e-02,"Tm":1.21081783e+01,"tau_u":3.82348062e-05,"tau_v":8.21162517e-06,
+                   "t_ref":2.85715049e+2,"um_0":4.48291145e-02,"vm_0":-1.05211059e-02,"Tm_0":1.21081783e+01,
+                     "um_99":2.93019213e-02,"vm_99":4.04511051e-03,"Tm_99":9.98328467e+00,
+                     "um_253":2.39374764e-02,"vm_253":4.68866993e-03,"Tm_253":8.55389633e+00}
+        
+        std_dict = {"um":1.51401489e-01,"vm":1.43377056e-01,"Tm":9.03735246e+00,"tau_u":9.60773988e-05,"tau_v":8.42097158e-05,
+                   "t_ref":9.21912876e+00,"um_0":1.51401489e-01,"vm_0":1.43377056e-01,"Tm_0":9.03735246e+00,
+                     "um_99":0.13803744,"vm_99":0.12650987,"Tm_99":8.29932087,
+                     "um_253":0.12300715,"vm_253":0.11049998,"Tm_253":7.68735387}    
+
+    elif region == "Tropics_Ext":
+        mean_dict = {"um":-6.56001477e-02,"vm":3.03974905e-02,"Tm":1.85474497e+01,"tau_u":-3.79044117e-05,"tau_v":-4.91180848e-06,
+                   "t_ref":2.96640798e+02,"um_0":-6.56001477e-02,"vm_0":3.03974905e-02,"Tm_0":1.85474497e+01,
+                     "um_99":4.71830777e-03,"vm_99":4.80014641e-04,"Tm_99":1.22588992e+01,
+                     "um_253":-6.63711393e-03,"vm_253":1.01151822e-03,"Tm_253":8.36092632e+00}
+        
+        std_dict = {"um":1.95064212e-01,"vm":1.42985598e-01,"Tm":1.13369541e+01,"tau_u":4.90698542e-05,"tau_v":3.49303944e-05,
+                   "t_ref":2.97622406e+00,"um_0":1.95064212e-01,"vm_0":1.42985598e-01,"Tm_0":1.13369541e+01,
+                     "um_99":0.14478501,"vm_99":0.0861209,"Tm_99":9.17627311,
+                     "um_253":0.0638834,"vm_253":0.05032483,"Tm_253":6.74403382}            
+
+    elif region == "Quiescent_Ext":
+        mean_dict = {"um":3.18046221e-02,"vm":1.31442399e-03,"Tm":1.61681938e+01,"tau_u":2.58048575e-05,"tau_v":-3.11680868e-06,
+                   "t_ref":2.87996087e+02,"um_0":3.18046221e-02,"vm_0":1.31442399e-03,"Tm_0":1.61681938e+01,
+                     "um_99":1.87243772e-02,"vm_99":2.10032583e-03,"Tm_99":1.41782428e+01,
+                     "um_253":1.18352078e-02,"vm_253":1.63565767e-03,"Tm_253":1.10941377e+01}
+        std_dict = {"um":1.04966172e-01,"vm":8.70280337e-02,"Tm":7.18070321e+00,"tau_u":1.25641199e-04,"tau_v":9.48015232e-05,
+                   "t_ref":7.01619519e+00,"um_0":1.04966172e-01,"vm_0":8.70280337e-02,"Tm_0":7.18070321e+00,
+                     "um_99":0.07786532,"vm_99":0.05987989,"Tm_99":6.86105509,
+                     "um_253":0.07023565,"vm_253":0.05248215,"Tm_253":5.19177608}           
+        
+    if Lateral:
+        mean_in = np.zeros(len(inputs+extra_in+inputs))
+        std_in = np.zeros(len(inputs+extra_in+inputs))
+    else:
+        mean_in = np.zeros(len(inputs+extra_in))
+        std_in = np.zeros(len(inputs+extra_in))      
+        
+    mean_out = np.zeros(len(outputs))
+    std_out = np.zeros(len(outputs))
+    
+    for (i,j) in zip(range(len(inputs+extra_in)),inputs+extra_in):
+        mean_in[i] = mean_dict[j]
+        std_in[i] = std_dict[j]
+    if Lateral:
+        mean_in[-len(inputs):] = mean_in[:len(inputs)]
+        std_in[-len(inputs):] = std_in[:len(inputs)]
+        
+    for (i,j) in zip(range(len(outputs)),outputs):
+        mean_out[i] = mean_dict[j]
+        std_out[i] = std_dict[j]
+        
+    std_dict = {'s_in':std_in,'s_out':std_out,'m_in':mean_in, 'm_out':mean_out}
+    
+    return std_dict
