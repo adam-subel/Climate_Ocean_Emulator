@@ -138,7 +138,8 @@ class data_CNN(torch.utils.data.Dataset):
 
 class data_CNN_Lateral(torch.utils.data.Dataset):
 
-    def __init__(self,data_in,data_out,wet,N_atm,Nb,device = "cuda",wet_atm = False):
+
+    def __init__(self,data_in,data_out,wet,N_atm,Nb,device = "cuda",wet_atm = False,norms= "None",N_vars=None):
         super().__init__()
         self.device = device        
         num_inputs = data_in.shape[3]
@@ -148,13 +149,20 @@ class data_CNN_Lateral(torch.utils.data.Dataset):
         data_in = np.nan_to_num(data_in)
         data_out = np.nan_to_num(data_out)
         
-        std_data = np.nanstd(data_in,axis=(0,1,2))
-        mean_data = np.nanmean(data_in,axis=(0,1,2)) 
-        std_label = np.nanstd(data_out,axis=(0,1,2))
-        mean_label = np.nanmean(data_out,axis=(0,1,2))
+        if norms != "None":
+            std_data = norms['s_in']
+            mean_data = norms['m_in'] 
+            std_label = norms['s_out']
+            mean_label = norms['m_out']  
+        else:
         
-        std_data[int(num_outputs+N_atm):int(2*num_outputs+N_atm)] = std_data[:num_outputs]        
-        mean_data[int(num_outputs+N_atm):int(2*num_outputs+N_atm)] = mean_data[:num_outputs]
+            std_data = np.nanstd(data_in,axis=(0,1,2))
+            mean_data = np.nanmean(data_in,axis=(0,1,2)) 
+            std_label = np.nanstd(data_out,axis=(0,1,2))
+            mean_label = np.nanmean(data_out,axis=(0,1,2))
+
+            std_data[int(num_outputs+N_atm):int(2*num_outputs+N_atm)] = std_data[:num_outputs]        
+            mean_data[int(num_outputs+N_atm):int(2*num_outputs+N_atm)] = mean_data[:num_outputs]
 
         self.wet = wet
         
@@ -173,7 +181,19 @@ class data_CNN_Lateral(torch.utils.data.Dataset):
 
         std_dict = {'s_in':std_data,'s_out':std_label,'m_in':mean_data, 'm_out':mean_label}
         
-        if wet == None:
+        if type(wet) == list:
+            temp_in = torch.swapaxes(torch.swapaxes(data_in,1,3),2,3)
+            temp_out = torch.swapaxes(torch.swapaxes(data_out,1,3),2,3)            
+            for i in range(len(wet)):
+                temp_in[:,i*N_vars:i*N_vars] = torch.mul(temp_in[:,i*N_vars:i*N_vars],wet[i])
+                start = num_outputs+N_atm
+                temp_in[:,start+i*N_vars:start+i*N_vars] = torch.mul(temp_in[:,start+i*N_vars:start+i*N_vars],wet[i])
+                temp_out[:,i*N_vars:i*N_vars] = torch.mul(temp_out[:,i*N_vars:i*N_vars],wet[i])
+            temp_in[:,num_outputs:num_outputs+N_atm] = torch.mul(temp_in[:,num_outputs:num_outputs+N_atm],wet[0])
+            self.input = temp_in
+            self.output = temp_out            
+        
+        elif wet == None:
             self.input = torch.swapaxes(torch.swapaxes(data_in,1,3),2,3)
             self.output = torch.swapaxes(torch.swapaxes(data_out,1,3),2,3)           
             
@@ -210,7 +230,7 @@ class data_CNN_Lateral(torch.utils.data.Dataset):
     
 class data_CNN_steps_Lateral(torch.utils.data.Dataset):
 
-    def __init__(self,data_in,data_out,steps,wet,N_atm,Nb,device = "cuda",wet_atm = False):
+    def __init__(self,data_in,data_out,steps,wet,N_atm,Nb,device = "cuda",wet_atm = False,norms= "None",N_vars=None):
         super().__init__()
         self.device = device
         steps = len(data_out)
@@ -224,13 +244,20 @@ class data_CNN_steps_Lateral(torch.utils.data.Dataset):
             data_out[i] = np.nan_to_num(data_out[i])
             data_in[i] = np.nan_to_num(data_in[i])
        
-        std_data = np.nanstd(data_in[0],axis=(0,1,2))
-        mean_data = np.nanmean(data_in[0],axis=(0,1,2)) 
-        std_label = np.nanstd(data_out[0],axis=(0,1,2))
-        mean_label = np.nanmean(data_out[0],axis=(0,1,2))
+        if norms != "None":
+            std_data = norms['s_in']
+            mean_data = norms['m_in'] 
+            std_label = norms['s_out']
+            mean_label = norms['m_out']  
+        else:
+            std_data = np.nanstd(data_in[0],axis=(0,1,2))
+            mean_data = np.nanmean(data_in[0],axis=(0,1,2)) 
+            std_label = np.nanstd(data_out[0],axis=(0,1,2))
+            mean_label = np.nanmean(data_out[0],axis=(0,1,2))
+            
         
-        std_data[int(num_outputs+N_atm):int(2*num_outputs+N_atm)] = std_data[:num_outputs]        
-        mean_data[int(num_outputs+N_atm):int(2*num_outputs+N_atm)] = mean_data[:num_outputs]        
+            std_data[int(num_outputs+N_atm):int(2*num_outputs+N_atm)] = std_data[:num_outputs]        
+            mean_data[int(num_outputs+N_atm):int(2*num_outputs+N_atm)] = mean_data[:num_outputs]        
 
         for j in range(steps):
             for i in range(num_outputs):
@@ -250,13 +277,25 @@ class data_CNN_steps_Lateral(torch.utils.data.Dataset):
 
         std_dict = {'s_in':std_data,'s_out':std_label,'m_in':mean_data, 'm_out':mean_label}
         
-        if wet == None:
+        if type(wet) == list:
+            for j in range(steps):
+                temp_in = torch.swapaxes(torch.swapaxes(data_in[j],1,3),2,3)
+                temp_out = torch.swapaxes(torch.swapaxes(data_out[j],1,3),2,3)            
+                for i in range(len(wet)):
+                    temp_in[:,i*N_vars:i*N_vars] = torch.mul(temp_in[:,i*N_vars:i*N_vars],wet[i])
+                    start = num_outputs+N_atm
+                    temp_in[:,start+i*N_vars:start+i*N_vars] = torch.mul(temp_in[:,start+i*N_vars:start+i*N_vars],wet[i])
+                    temp_out[:,i*N_vars:i*N_vars] = torch.mul(temp_out[:,i*N_vars:i*N_vars],wet[i])
+                print(num_outputs,start)
+                temp_in[:,num_outputs:start] = torch.mul(temp_in[:,num_outputs:start],wet[0])
+                data_out[j] = temp_out.clone()
+                data_in[j] = temp_in.clone()
+        elif wet == None:
             for j in range(steps):
                 data_out[j] = torch.swapaxes(torch.swapaxes(data_out[j],1,3),2,3)
                 data_in[j] = torch.swapaxes(torch.swapaxes(data_in[j],1,3),2,3)
         else:
             for j in range(steps):
-
                 data_out[j] = torch.mul(torch.swapaxes(torch.swapaxes(data_out[j],1,3),2,3),wet)
                 data_in[j] = torch.mul(torch.swapaxes(torch.swapaxes(data_in[j],1,3),2,3),wet)
                 
