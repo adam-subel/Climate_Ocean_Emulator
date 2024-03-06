@@ -754,13 +754,13 @@ def compute_RMSE_single(N_eval,test_data,model_pred,area,wet):
     return rmse,auto_rmse
 
 
-def compute_ACC_single(N_eval,test_data,model_pred,clim,time,area,wet):
+def compute_ACC_single(N_eval,test_data,model_pred,clim,time,area,wet,lag):
     model_pred = model_pred.copy()
     test_data = test_data.copy()
     clim = clim.copy()
     N_in = model_pred.shape[-1]
-    corrs = np.zeros((N_eval,N_in))
-    auto_corrs = np.zeros((N_eval,N_in))
+    corrs = np.zeros((N_eval))
+    auto_corrs = np.zeros((N_eval))
     area_flat = np.array(area[wet].flatten())
 
     for i in range(N_eval):
@@ -769,11 +769,11 @@ def compute_ACC_single(N_eval,test_data,model_pred,clim,time,area,wet):
         test_data[i] -= clim[day,:,:].squeeze()
         cor_u = (area_flat*model_pred[i,wet].flatten()*test_data[i,wet].flatten()).sum()/np.sqrt((area_flat*model_pred[i,wet].flatten()**2).sum()*(area_flat*test_data[i,wet].flatten()**2).sum())
 
-        corrs[i,0] =  cor_u
+        corrs[i] =  cor_u
 
         autocor_u = (area_flat*test_data[0,wet].flatten()*test_data[i,wet].flatten()).sum()/np.sqrt((area_flat*test_data[0,wet].flatten()**2).sum()*(area_flat*test_data[i,wet].flatten()**2).sum())
 
-        auto_corrs[i,0] =  autocor_u
+        auto_corrs[i] =  autocor_u
         
     return corrs,auto_corrs
 
