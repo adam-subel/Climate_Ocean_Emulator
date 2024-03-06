@@ -754,7 +754,7 @@ def compute_RMSE_single(N_eval,test_data,model_pred,area,wet):
     return rmse,auto_rmse
 
 
-def compute_ACC_single(N_eval,test_data,model_pred,clim,time,area,wet,lag):
+def compute_ACC_single(N_eval,test_data,model_pred,clim,time,area,wet):
     model_pred = model_pred.copy()
     test_data = test_data.copy()
     clim = clim.copy()

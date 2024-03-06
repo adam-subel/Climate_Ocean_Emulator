@@ -15,7 +15,7 @@ from cartopy.mpl.gridliner import LONGITUDE_FORMATTER, LATITUDE_FORMATTER
 from sklearn.neighbors import KernelDensity
 import scipy.sparse as sp
 from scipy.ndimage import gaussian_filter
-
+import dask as dask
 
 #Class defined to store information about the grid and corresponding graph of data. Importantly produces the adjacency matrices 
 #and keeps track of what is land vs ocean 
@@ -559,24 +559,33 @@ def gen_data_025(input_vars,extra_vars,output_vars,lag,lat,lon):
 
     return inputs, extra_in, outputs
 
-def gen_data_025_lateral(input_vars,extra_vars,output_vars,lag,lat,lon,Nb=2,filter_T=False,filter_width = 20,area = None):
+def gen_data_025_lateral(input_vars,extra_vars,output_vars,lag,lat,lon,Nb=2,area = None,run_type=""):
     var_dict = {"um":"u_mean","vm":"v_mean","Tm":"T_mean",
                 "ur":"u_res","vr":"v_res","Tr":"T_res",
                "u":"u","v":"v","T":"T",
                "tau_u":"tau_u","tau_v":"tau_v","tau":"tau",
                "t_ref":"t_ref"}
-
-    data = xr.open_zarr("/scratch/as15415/Data/Emulation_Data/Global_Ocean_025deg.zarr")
-    data_atmos = xr.open_zarr("/scratch/as15415/Data/Emulation_Data/Data_Atmos_025_deg.zarr").drop(["xu_ocean","T_mean"]).assign_coords({"lon":data.xu_ocean.data})
     
+    
+    if run_type != "":
+        run_type = "_" + run_type
+    with dask.config.set(**{'array.slicing.split_large_chunks': True}):
+        data = xr.open_zarr("/scratch/as15415/Data/Emulation_Data/Global_Ocean_025deg"+run_type+".zarr").sortby("time")
+        try:
+            data_atmos = xr.open_zarr("/scratch/as15415/Data/Emulation_Data/Data_Atmos_025_deg"+run_type+".zarr").drop(["xu_ocean","T_mean"]).assign_coords({"lon":data.xu_ocean.data}).sortby("time")
+        except:
+            data_atmos = xr.open_zarr("/scratch/as15415/Data/Emulation_Data/Data_Atmos_025_deg"+run_type+".zarr").sortby("time")    
 #     data_atmos = xr.open_zarr("/scratch/as15415/Data/Emulation_Data/Data_Atmos_025_deg_filtered.zarr").assign_coords({"lon":data.xu_ocean.data})    
-    data_atmos = data_atmos.rename_dims({"lat":"yu_ocean","lon":"xu_ocean"})
-    data_atmos = data_atmos.rename({"lat":"yu_ocean","lon":"xu_ocean"})
+        data_atmos = data_atmos.rename_dims({"lat":"yu_ocean","lon":"xu_ocean"})
+        data_atmos = data_atmos.rename({"lat":"yu_ocean","lon":"xu_ocean"})
     
 #     data_atmos["xu_ocean"] = data.xu_ocean.data
 #     data_atmos["yu_ocean"] = data.yu_ocean.data    
 #     data_atmos["time"] = data.time.data
-
+    
+        data = data.sel(time=slice(data_atmos.time[0],data_atmos.time[-1]))
+        data_atmos = data_atmos.sel(time=slice(data.time[0],data.time[-1]))
+    
     data = xr.merge([data,data_atmos])
     
     data = data.sel(yu_ocean=slice(lat[0],lat[1]),xu_ocean=slice(lon[0],lon[1]))
@@ -589,12 +598,6 @@ def gen_data_025_lateral(input_vars,extra_vars,output_vars,lag,lat,lon,Nb=2,filt
         inputs.append(data[var_dict[var]])
 
     for var in extra_vars:
-        if var == "t_ref" and filter_T:
-            if filter_width == "mean":
-                data[var_dict[var]] = data[var_dict[var]]*0 + ((data[var_dict[var]]*area).sum(dim=["xu_ocean","yu_ocean"])/area.sum()).compute()            
-            else:
-                data[var_dict[var]].data =gaussian_filter(data[var_dict[var]],filter_width)
-        
         extra_in.append(data[var_dict[var]])
 
     for var in input_vars:             
