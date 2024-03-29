@@ -18,11 +18,12 @@ from Utils import *
 from Subgrid_Funcs import *
 import torch.distributed as dist
 
-from Parallel import *
+from Parallel_Annotate import *
 from torch.utils.data import Dataset, DataLoader
 import os 
 import sys
 import random
+os.environ['MKL_THREADING_LAYER'] = 'GNU'
 
 
 exp_num_in = sys.argv[1]

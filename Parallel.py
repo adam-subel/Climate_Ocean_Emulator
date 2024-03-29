@@ -167,8 +167,10 @@ def train_parallel_Dynamic(model, train_loader,N_in,N_extra,hist,loss_fn, optimi
     
         optimizer.step()
         torch.cuda.empty_cache()
+    
         
-        
+
+
 def train_parallel_Dynamic_lateral(model, train_loader,N_in,N_extra,Nb,hist,loss_fn, optimizer,steps,weight,device):
     mse = torch.nn.MSELoss()
     for data in train_loader:
@@ -221,22 +223,22 @@ def test_parallel_Dynamic(model, test_loader,device):
 
 
 
-def train_CNN_Res_parallel_Dynamic(model,model_res, train_loader,
-                           N_in,N_extra,N_res,hist,loss_fn, optimizer,optimizer_res,
+def train_Res(model,model_res, train_loader,
+                           N_in,N_extra,N_res,N_atm,hist,loss_fn, optimizer,optimizer_res,
                            steps,weight,alpha,device):
     mse = torch.nn.MSELoss()
     
     slices = list(range(N_in))
     
-    for i in range(N_in,N_in+N_extra):
+    for i in range(N_in,N_in+N_atm):
         slices.append(i)
     
-    for i in range(N_in+N_res+N_extra,N_in+N_res+N_extra + hist*N_in):
+    for i in range(N_in+N_atm+N_res,N_in+N_extra + hist*N_in):
         slices.append(i)
         
     res_inds = []
     
-    for i in range(N_in+N_extra,N_in+N_extra+N_res):
+    for i in range(N_in+N_atm,N_in+N_atm+N_res):
         res_inds.append(i)
     
     for data in train_loader:
@@ -259,11 +261,11 @@ def train_CNN_Res_parallel_Dynamic(model,model_res, train_loader,
                     step_in = torch.concat((outs,data[int(step*2)][:,N_in:].to(device = device)),1)
                     outs_old = outs
                 elif (step > 1) and (hist == 1):
-                    step_in = torch.concat((outs,data[int(step*2)][:,N_in:(N_in+N_extra+N_res)].to(device = device),outs_old),1)
+                    step_in = torch.concat((outs,data[int(step*2)][:,N_in:(N_in+N_extra)].to(device = device),outs_old),1)
                     outs_old = outs
                 else:
-                    step_in = torch.concat((outs,data[int(step*2)][:,N_in:(N_in+N_extra+N_res)].to(device = device),
-                                            outs_old,step_in[:,(N_in+N_extra+N_res):-N_in]),1)
+                    step_in = torch.concat((outs,data[int(step*2)][:,N_in:(N_in+N_extra)].to(device = device),
+                                            outs_old,step_in[:,(N_in+N_extra):-N_in]),1)
                     outs_old = outs                    
 
 
@@ -279,20 +281,26 @@ def train_CNN_Res_parallel_Dynamic(model,model_res, train_loader,
 
         optimizer.step()
         optimizer_res.step()
+        torch.cuda.empty_cache()
             
-def test_res_parallel_Dynamic(model,model_res,test_loader,N_in,N_extra,N_res,hist,device):
-    mse = torch.nn.MSELoss()
-
-    slices = list(range(N_in))
+def test_res_parallel_Dynamic(model,model_res,test_loader,N_in,N_extra,N_res,N_atm,hist,device):
+    loss = torch.nn.MSELoss()
     
-    for i in range(N_in,N_in+N_extra):
+    slices = list(range(N_in))
+
+    for i in range(N_in,N_in+N_atm):
         slices.append(i)
     
-    for i in range(N_in+N_res+N_extra,N_in+N_res+N_extra + hist*N_in):
+    for i in range(N_in+N_atm+N_res,N_in+N_extra + hist*N_in):
         slices.append(i)
         
     res_inds = []
     
+    for i in range(N_in+N_atm,N_in+N_atm+N_res):
+        res_inds.append(i)
+        
+    res_inds = []
+
     for i in range(N_in+N_extra,N_in+N_extra+N_res):
         res_inds.append(i)
         
@@ -300,94 +308,12 @@ def test_res_parallel_Dynamic(model,model_res,test_loader,N_in,N_extra,N_res,his
         with torch.no_grad():
             inpt = data.to(device = device)
             res = model_res(data[:,slices,].to(device = device))
-            inpt[:,res_inds] = res  
-            outs = model(inpt)
-            loss_val = mse(outs, label.to(device = device))
+            inpt[:,res_inds] = res
+            outs = model(inpt).cpu()
+            
+            loss_val = loss(outs,label)
     return loss_val
         
-    
-
-def worker_vary_steps(local_rank,args):
-
-    global_rank = local_rank*1
-    dist.init_process_group(backend='nccl',world_size=args["World_Size"], rank=global_rank)
-    
-    device = torch.device("cuda:" + str(local_rank) if torch.cuda.is_available() else "cpu")
-    device_name = "cuda:" + str(local_rank)
-    
-    args["area"] = args["area"].to(device)
-    if args["load"]:
-        data_in_train = []
-        data_out_train = []
-
-        for i in range(args["steps"]):
-            data_in_train.append(gen_data_in(i,args["s_train"],args["e_train"],
-                                             args["interval"],args["lag"],args["hist"],args["inputs"],args["extra_in"]))
-            data_out_train.append(gen_data_out(i,args["s_train"],args["e_train"],args["lag"],args["interval"],args["outputs"]))
-
-        train_data = data_CNN_steps_Dynamic(data_in_train,data_out_train,args["steps"],args["wet"],device=device_name)       
-
-        data_in_val = gen_data_in(0,args["e_train"],args["e_test"],args["interval"],
-                                  args["lag"],args["hist"],args["inputs"],args["extra_in"])  
-        data_out_val = gen_data_out(0,args["e_train"],args["e_test"],args["lag"],args["interval"],args["outputs"])
-
-        val_data = data_CNN_Dynamic(data_in_val,data_out_val,args["wet"],device=device_name)       
-    else:
-        val_data = args["val_data"]
-        train_data = args["train_data"]
-    
-    dist.barrier()
-  
-    train_sampler = torch.utils.data.distributed.DistributedSampler(
-    train_data,
-    num_replicas=args["World_Size"],
-    rank=global_rank
-    )
-    
-    test_sampler = torch.utils.data.distributed.DistributedSampler(
-    val_data,
-    num_replicas=args["World_Size"],
-    rank=global_rank
-    )
-    
-    train_loader = torch_geometric.loader.DataLoader(train_data, batch_size=args["batch_size"], sampler=train_sampler)
-    test_loader = torch_geometric.loader.DataLoader(val_data, batch_size=args["batch_size"], sampler=test_sampler)
-
-    if args["network"] == "CNN":
-        model = CNN(num_in = args["num_in"], num_out = args["N_in"], num_channels = 64,num_layers = 5,kernel_size=3)
-    elif args["network"] == "U_net":
-        model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(U_net([args["num_in"],64,128,256,512],
-                                                                    args["N_in"],args["wet"].to(device)).to(device))
-    elif args["network"] == "U_net_RK":
-        model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(U_net_RK([args["num_in"],64,128,256,512],args["N_in"],args["wet"].to(device)).to(device))    
-    elif args["network"] == "U_net_PEC":
-        model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(U_net_PEC([args["num_in"],64,128,256,512],args["N_in"],args["wet"].to(device)).to(device))   
-    lam = args["lam"]
-    mse = torch.nn.MSELoss()
-    loss = lambda out,pred:  mse(out,pred)*(1-lam) + loss_KE_pointwise(out,pred)*lam
-    
-    
-    
-    for k in range(args["steps"]):
-        step_weights = args["step_weights"][k]
-        lr = args["step_lrs"][k]
-        optimizer = torch.optim.Adam(model.parameters(),weight_decay=1e-4, lr=lr)
-
-        for epoch in range(args["epochs"]):
-            train_sampler.set_epoch(int(epoch+k*args["epochs"]))
-            train_parallel_Dynamic(model, train_loader,args["N_in"],args["N_extra"],
-                           args["hist"],loss, optimizer,k,step_weights,device)
-
-            v_loss = test_parallel_Dynamic(model,test_loader,device)
-
-            torch.distributed.all_reduce(v_loss/args["World_Size"],op= dist.ReduceOp.SUM)
-
-            if global_rank ==0:
-                print("Epoch = {:2d}, Validation Loss = {:5.3f}".format(epoch+1,v_loss),flush=True)
-
-    
-    if global_rank ==0 and args["save_model"]:
-        torch.save(model.state_dict(),'/scratch/as15415/Emulation/Networks/' + 'U_net_Parallel_'+args["region"]+'_Test_in_' + args["str_in"] + 'ext_' + args["str_ext"] +'_out'+args['str_out']+'N_train_' + str(args["N_samples"]) + args["str_video"] + '.pt')
         
         
 def worker_joint_vary_steps(local_rank,args):
@@ -399,35 +325,36 @@ def worker_joint_vary_steps(local_rank,args):
     device_name = "cuda:" + str(local_rank)
     
     args["area"] = args["area"].to(device)
-
-    if args["load"]:
-        data_in_train = []
-        data_out_train = []    
-
-        for i in range(args["steps"]):
-            data_in_train.append(gen_data_in(i,args["s_train"],args["e_train"],
-                                             args["interval"],args["lag"],args["hist"],args["inputs"],args["extra_in"]))
-            data_out_train.append(gen_data_out(i,args["s_train"],args["e_train"],args["lag"],args["interval"],args["outputs"]))
-
-        train_data = data_CNN_steps_Dynamic(data_in_train,data_out_train,args["steps"],args["wet"],device=device_name)       
-
-        data_in_val = gen_data_in(0,args["e_train"],args["e_test"],args["interval"],
-                                  args["lag"],args["hist"],args["inputs"],args["extra_in"])  
-        data_out_val = gen_data_out(0,args["e_train"],args["e_test"],args["lag"],args["interval"],args["outputs"])
-
-        val_data = data_CNN_Dynamic(data_in_val,data_out_val,args["wet"],device=device_name)      
-        
+    args["area"] = args["area"]/args["area"].min()
+    
+    data_in_train = []
+    data_out_train = []
+    for i in range(args["steps"]):
+        offset = global_rank*args["interval"]
+        data_in_train.append(gen_data_in(i,args["s_train"]+offset,args["e_train"],
+                                         args["interval"]*args["World_Size"],args["lag"],
+                                         args["hist"],args["inputs"],args["extra_in"]))
+        data_out_train.append(gen_data_out(i,args["s_train"]+offset,args["e_train"],
+                                           args["lag"],args["interval"]*args["World_Size"],
+                                           args["outputs"]))
+    
+    if args["lateral"]:
+        train_data = data_CNN_steps_Lateral(data_in_train,data_out_train,
+                                            args["steps"],args["wet"],args["N_atm"],args["Nb"],device=device)  
     else:
-        val_data = args["val_data"]
-        train_data = args["train_data"]
-        
+        train_data = data_CNN_steps_Dynamic(data_in_train,data_out_train,
+                                            args["steps"],args["wet"],device=device)     
     dist.barrier()
+
+    val_data = args["val_data"]
+    
+        
 
     
     train_sampler = torch.utils.data.distributed.DistributedSampler(
     train_data,
-    num_replicas=args["World_Size"],
-    rank=global_rank
+    num_replicas=1,
+    rank=0
     )
     
     test_sampler = torch.utils.data.distributed.DistributedSampler(
@@ -442,9 +369,11 @@ def worker_joint_vary_steps(local_rank,args):
     if args["network"] == "CNN":
         model = CNN(num_in = num_in, num_out = N_out, num_channels = 64,num_layers = 5,kernel_size=3)
     elif args["network"] == "U_net":
-        model = U_net([args["num_in"],64,128,256,512],args["N_out"],args["wet"].to(device))
-    elif args["network"] == "U_net_RK":
-        model = U_net_RK([num_in,64,128,256,512],N_out,wet.to(device))
+        model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(U_net([args["num_in"],64,128,256,512],
+                                                                    args["N_in"],args["wet"].to(device)).to(device))
+    elif args["network"] == "U_net_Inv":
+        model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(U_net([args["num_in"],256,128,64,32],
+                                                                    args["N_in"],args["wet"].to(device)).to(device))  
     model.to(device=device);
     if args["init_weights"]:
         model.load_state_dict(torch.load(args["path_mean"],map_location=device))
@@ -453,40 +382,52 @@ def worker_joint_vary_steps(local_rank,args):
     if args["network"] == "CNN":
         model_res = CNN(num_in = int(num_in+N_extra-N_res), num_out = N_res, num_channels = 64,num_layers = 5,kernel_size=3)
     elif args["network"] == "U_net":
-        model_res = U_net([int(args["num_in"]-args["N_res"]),64,128,256,512],args["N_res"],args["wet"].to(device))
-    elif args["network"] == "U_net_RK":
-        model_res = U_net_RK([int(num_in-N_res),64,128,256,512],N_res,wet.to(device))
-
+        model_res = torch.nn.SyncBatchNorm.convert_sync_batchnorm(U_net([int(args["num_in"]-args["N_res"]),
+                                                                         64,128,256,512],
+                                                                    args["N_in"],args["wet"].to(device)).to(device))        
+    elif args["network"] == "U_net_Inv":
+        model_res = torch.nn.SyncBatchNorm.convert_sync_batchnorm(U_net([int(args["num_in"]-args["N_res"]),
+                                                                         256,128,64,32],
+                                                                    args["N_in"],args["wet"].to(device)).to(device)) 
     model_res.to(device=device);
     if args["init_weights"]:
         model_res.load_state_dict(torch.load(args["path_res"],map_location=device))  
 
-    lr = 1e-4
-    lam = .05
-    mse = torch.nn.MSELoss()
-    loss = lambda out,pred: loss_KE(out,pred,args["area"])*lam +  mse(out,pred)*(1-lam)
     
-    optimizer = torch.optim.Adam(model.parameters(),weight_decay=1e-4, lr=lr)
-    optimizer_res = torch.optim.Adam(model_res.parameters(),weight_decay=1e-4, lr=lr)
+    lam = args["lam"]
+    mse = torch.nn.MSELoss()
+    if args["loss_type"] == "Enstrophy":
+        loss = lambda out,pred:  mse(out,pred)*(1-lam) + loss_enstrophy(out,pred,args['dx'],args['dy'],args['Nb'],args['wet_lap'])*lam
+    elif args["loss_type"] == "Vorticity":
+        loss = lambda out,pred:  mse(out,pred)*(1-lam) + loss_vort(out,pred,args['dx'],args['dy'],args['Nb'],args['wet_lap'])*lam        
+    else:
+        loss = lambda out,pred:  mse(out,pred)*(1-lam) + loss_KE_pointwise(out,pred)*lam
+        
     
             
     for k in range(args["steps"]):
         step_weights = args["step_weights"][k]
         lr = args["step_lrs"][k]
         optimizer = torch.optim.Adam(model.parameters(),weight_decay=1e-4, lr=lr)
-
+        optimizer_res = torch.optim.Adam(model_res.parameters(),weight_decay=1e-4, lr=lr)
+        print(k)
+        
         for epoch in range(args["epochs"]):
+            print(epoch)
             train_sampler.set_epoch(int(epoch+k*args["epochs"]))
-            train_CNN_Res_parallel_Dynamic(model,model_res, train_loader,args["N_in"],args["N_extra"],args["N_res"],
+            test_sampler.set_epoch(int(epoch+k*args["epochs"]))
+            
+            train_Res(model,model_res, train_loader,args["N_in"],args["N_extra"],args["N_res"],args["N_atm"],
                        args["hist"],loss, optimizer,optimizer_res,k,step_weights,0.2,device)
 
             v_loss = test_res_parallel_Dynamic(model,model_res,test_loader,
-                                               args["N_in"],args["N_extra"],args["N_res"],args["hist"],device)
+                                               args["N_in"],args["N_extra"],args["N_res"],
+                                               args["N_atm"],args["hist"],device)
 
-            torch.distributed.all_reduce(v_loss/args["World_Size"],op= dist.ReduceOp.SUM)
+            # torch.distributed.all_reduce(v_loss/args["World_Size"],op= dist.ReduceOp.SUM)
 
-            if global_rank ==0:
-                print("Epoch = {:2d}, Validation Loss = {:5.3f}".format(epoch+1,v_loss), flush=True)
+            # if global_rank ==0:
+            #     print("Epoch = {:2d}, Validation Loss = {:5.3f}".format(epoch+1,v_loss), flush=True)
                 
     if global_rank ==0 and args["save_model"]:
         torch.save(model.state_dict(),

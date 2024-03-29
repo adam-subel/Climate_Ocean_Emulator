@@ -329,7 +329,35 @@ def train_CNN_Res(model,model_res, train_loader, test_loader,N_in,N_extra,N_res,
             
         print({"Train_loss": loss, "Val_loss": loss_val})
 
-    
+
+class Conv_block(torch.nn.Module):
+
+    def __init__(self,num_in = 2, num_out = 2,kernel_size = 3, num_layers=2, pad = "constant"):
+        super().__init__()
+        self.N_in = num_in
+        self.N_pad = int((kernel_size-1)/2)
+        self.pad = pad
+        
+        layers = []
+        layers.append(torch.nn.Conv2d(num_in,num_out,kernel_size))
+        layers.append(torch.nn.BatchNorm2d(num_out))        
+        layers.append(torch.nn.ReLU())
+        for _ in range(num_layers-1):
+            layers.append(torch.nn.Conv2d(num_out,num_out,kernel_size))
+            layers.append(torch.nn.BatchNorm2d(num_out))
+            layers.append(torch.nn.ReLU())              
+
+        self.layers = nn.ModuleList(layers)
+        #self.layers = nn.ModuleList(layer)
+
+    def forward(self,fts):
+        for l in self.layers:
+            if isinstance(l,nn.Conv2d):
+                fts = torch.nn.functional.pad(fts,(self.N_pad,self.N_pad,0,0),mode=self.pad)
+                fts = torch.nn.functional.pad(fts,(0,0,self.N_pad,self.N_pad),mode="constant")
+            fts= l(fts)
+        return fts
+
 class U_net(torch.nn.Module):
     def __init__(self,ch_width,n_out,wet,kernel_size = 3,pad = "constant"):
         super().__init__()

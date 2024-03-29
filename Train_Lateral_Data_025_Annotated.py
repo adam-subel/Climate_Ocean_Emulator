@@ -23,6 +23,7 @@ from torch.utils.data import Dataset, DataLoader
 import os 
 import sys
 import random
+os.environ['MKL_THREADING_LAYER'] = 'GNU'
 
 
 exp_num_in = sys.argv[1]

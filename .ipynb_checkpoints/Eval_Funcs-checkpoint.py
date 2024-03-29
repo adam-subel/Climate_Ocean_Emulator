@@ -61,21 +61,21 @@ def recur_pred(N_eval,test_data,model,hist,N_in,N_extra):
     return model_pred*test_data.norm_vals['s_out'] + test_data.norm_vals['m_out']
 
 
-def recur_pred_joint(N_eval,test_data,model,model_res,hist,N_in,N_extra,N_res):
+def recur_pred_joint(N_eval,test_data,model,model_res,hist,N_in,N_extra,N_res,N_atm):
     
     N_test = test_data.size
     
     slices = list(range(N_in))
-
-    for i in range(N_in+N_res,N_in+N_res+N_extra):
+    
+    for i in range(N_in,N_in+N_atm):
         slices.append(i)
-
-    for i in range(N_in+N_res+N_extra,N_in+N_res+N_extra + hist*N_in):
+    
+    for i in range(N_in+N_atm+N_res,N_in+N_extra + hist*N_in):
         slices.append(i)
-
+        
     res_inds = []
-
-    for i in range(N_in,N_in+N_res):
+    
+    for i in range(N_in+N_atm,N_in+N_atm+N_res):
         res_inds.append(i)
 
     model.eval()
@@ -190,21 +190,21 @@ def recur_pred_joint_res(N_eval,test_data,model,model_res,hist,N_in,N_extra,N_re
 
             if (i>1) and (hist == 1):
                 if i+1<N_test:
-                    in_temp = torch.concat((pred_temp,test_data[i+1][0][N_in:(N_in+N_extra+N_res)],pred_temp),0)
+                    in_temp = torch.concat((pred_temp,test_data[i+1][0][N_in:(N_in+N_extra)],pred_temp),0)
                     pred_temp_old = torch.clone(pred_temp)
                 else:
                     ind = np.random.randint(N_test-1)
-                    in_temp = torch.concat((pred_temp,test_data[ind][0][N_in:(N_in+N_extra+N_res)],pred_temp_old),0)
+                    in_temp = torch.concat((pred_temp,test_data[ind][0][N_in:(N_in+N_extra)],pred_temp_old),0)
                     pred_temp_old = torch.clone(pred_temp)
             else:
                 if i+1<N_test:
-                    in_temp = torch.concat((pred_temp,test_data[i+1][0][N_in:(N_in+N_extra+N_res)],
-                                    pred_temp_old,in_temp[(N_in+N_extra+N_res):-N_in]),0)
+                    in_temp = torch.concat((pred_temp,test_data[i+1][0][N_in:(N_in+N_extra)],
+                                    pred_temp_old,in_temp[(N_in+N_extra):-N_in]),0)
                     pred_temp_old = torch.clone(pred_temp)
                 else:
                     ind = np.random.randint(N_test-1)
-                    in_temp = torch.concat((pred_temp,test_data[ind][0][N_in:(N_in+N_extra+N_res)],
-                                    pred_temp_old,in_temp[(N_in+N_extra+N_res):-N_in]),0)
+                    in_temp = torch.concat((pred_temp,test_data[ind][0][N_in:(N_in+N_extra)],
+                                    pred_temp_old,in_temp[(N_in+N_extra):-N_in]),0)
                     pred_temp_old = torch.clone(pred_temp)
     return model_pred*test_data.norm_vals['s_out'] + test_data.norm_vals['m_out'], res_pred
 
