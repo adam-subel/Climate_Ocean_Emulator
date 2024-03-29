@@ -420,9 +420,9 @@ def worker_joint_vary_steps(local_rank,args):
             train_Res(model,model_res, train_loader,args["N_in"],args["N_extra"],args["N_res"],args["N_atm"],
                        args["hist"],loss, optimizer,optimizer_res,k,step_weights,0.2,device)
 
-            v_loss = test_res_parallel_Dynamic(model,model_res,test_loader,
-                                               args["N_in"],args["N_extra"],args["N_res"],
-                                               args["N_atm"],args["hist"],device)
+            # v_loss = test_res_parallel_Dynamic(model,model_res,test_loader,
+            #                                    args["N_in"],args["N_extra"],args["N_res"],
+            #                                    args["N_atm"],args["hist"],device)
 
             # torch.distributed.all_reduce(v_loss/args["World_Size"],op= dist.ReduceOp.SUM)
 
