@@ -431,10 +431,10 @@ def worker_joint_vary_steps(local_rank,args):
                 
     if global_rank ==0 and args["save_model"]:
         torch.save(model.state_dict(),
-                               '/scratch/as15415/Emulation/Networks/' +
+                               '/scratch/sg7761/Emulation/Networks/' +
                   'U_net_Parallel_'+args["region"]+'_mean_in' + args["str_in"] + 'ext_' + args["str_ext"] +'N_train_' + str(args["N_samples"]) + args["str_video"] + '.pt') 
         torch.save(model_res.state_dict(),
-                       '/scratch/as15415/Emulation/Networks/' +
+                       '/scratch/sg7761/Emulation/Networks/' +
           'U_net_Parallel_'+args["region"]+'_res_in_' + args["str_in"] + 'ext_' + args["str_ext"]  +'N_train_' + str(args["N_samples"]) + args["str_video"] + '.pt')
         
 
@@ -520,7 +520,7 @@ def worker_vary_steps_lateral(local_rank,args):
 
     
     if global_rank ==0 and args["save_model"]:
-        torch.save(model.state_dict(),'/scratch/as15415/Emulation/Networks/' + 'U_net_Parallel_lateral_train_'+args["region"]+'_Test_in_' + args["str_in"] + 'ext_' + args["str_ext"] +'_out'+args['str_out']+'N_train_' + str(args["N_samples"]) + args["str_video"] + '.pt')           
+        torch.save(model.state_dict(),'/scratch/sg7761/Emulation/Networks/' + 'U_net_Parallel_lateral_train_'+args["region"]+'_Test_in_' + args["str_in"] + 'ext_' + args["str_ext"] +'_out'+args['str_out']+'N_train_' + str(args["N_samples"]) + args["str_video"] + '.pt')           
         
         
         
@@ -610,5 +610,5 @@ def worker_vary_steps_data_fast(local_rank,args):
 
     
     if global_rank ==0 and args["save_model"]:
-        torch.save(model.state_dict(),'/scratch/as15415/Emulation/Networks/' + 'U_net_Parallel_Fast_'+args["region"]+'_Test_in_' + args["str_in"] + 'ext_' + args["str_ext"] +'_out'+args['str_out']+'N_train_' + str(args["N_samples"]) + args["str_video"] + '.pt')
+        torch.save(model.state_dict(),'/scratch/sg7761/Emulation/Networks/' + 'U_net_Parallel_Fast_'+args["region"]+'_Test_in_' + args["str_in"] + 'ext_' + args["str_ext"] +'_out'+args['str_out']+'N_train_' + str(args["N_samples"]) + args["str_video"] + '.pt')
         
