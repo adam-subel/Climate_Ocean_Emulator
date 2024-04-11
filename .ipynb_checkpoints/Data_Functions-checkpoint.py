@@ -440,7 +440,10 @@ def gen_data_global(input_vars,extra_vars,output_vars,lag,res ="1"):
                "t_ref":"t_ref"}
 
     data = xr.open_zarr("/scratch/as15415/Data/Emulation_Data/Global_Ocean_"+res+"deg.zarr")
-    data_atmos = xr.open_zarr("/scratch/as15415/Data/Emulation_Data/Data_Atmos_"+res+"_deg.zarr").drop(["xu_ocean","T_mean"]).assign_coords({"lon":data.xu_ocean.data})
+    if res != "1":
+        data_atmos = xr.open_zarr("/scratch/as15415/Data/Emulation_Data/Data_Atmos_"+res+"_deg.zarr").drop(["xu_ocean","T_mean"]).assign_coords({"lon":data.xu_ocean.data})
+    else:
+        data_atmos = xr.open_zarr("/scratch/as15415/Data/Emulation_Data/Data_Atmos_"+res+"_deg.zarr")
     data_atmos = data_atmos.rename_dims({"lat":"yu_ocean","lon":"xu_ocean"})
     data_atmos = data_atmos.rename({"lat":"yu_ocean","lon":"xu_ocean"})
     
