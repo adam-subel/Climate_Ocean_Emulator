@@ -37,7 +37,7 @@ args = {}
 region = "Gulf_Stream"  
 network = "U_net"
 
-interval = 2
+interval = 1
 
 N_samples = 4000
 N_val = 300

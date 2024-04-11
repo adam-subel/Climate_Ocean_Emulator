@@ -25,17 +25,17 @@ import sys
 import random
 
 
-exp_num_in = sys.argv[1]
+exp_num_in = 6
 exp_num_extra = sys.argv[2]
-exp_num_out = sys.argv[3]
+exp_num_out = 10
 
 
 
 mse = torch.nn.MSELoss()
 args = {}
 
-region = "Gulf_Stream"  
-network = "U_net"
+region = "global_21"  
+network = "U_net_Global"
 
 interval = 1
 
@@ -58,6 +58,7 @@ Nb = 4
 
 rand_seed = 1
 
+lateral = False
 
 
 
@@ -82,17 +83,13 @@ try:
 except:
     print("no cond")
 
-str_video += "_Lateral_Data_025_Nonzero"
+str_video += "_global"
     
 torch.manual_seed(rand_seed)
 random.seed(rand_seed)
 np.random.seed(rand_seed)
 
 
-# if region == "Quiescent":
-#     interval = 1
-if N_samples > 2000:
-    interval = 1
   
     
 args["region"] = region
@@ -105,48 +102,7 @@ args["factor"] = factor
 args["hist"] = hist
 args["lag"] = lag
 args["steps"] = steps
-args["str_video"] = str_video
-
-    
-if region == "Kuroshio":
-    lat = [15,41]
-    lon = [-215, -185]
-elif region == "Kuroshio_Ext":
-    lat = [5,50]
-    lon = [-250, -175]      
-elif region == "Gulf_Stream":
-    lat = [25, 50]
-    lon = [-70,-35]
-elif region == "Gulf_Stream_Ext":
-    lat = [27, 50]
-    lon = [-82,-35]       
-elif region == "Tropics":
-    lat = [-5,25]
-    lon = [-95,-65]  
-elif region == "Tropics_Ext":
-    lat = [-5,25]
-    lon = [-115,-45]     
-elif region == "South_America":
-    lat = [-60, -30]
-    lon = [-70,-35] 
-elif region == "Africa":
-    lat = [-50, -20]
-    lon = [5,45] 
-elif region == "Quiescent":
-    lat = [-42.5, -17.5]
-    lon = [-155,-120] 
-elif region == "Quiescent_Ext":
-    lat = [-55, -10]
-    lon = [-170,-110]            
-elif region == "Pacific":
-    lat = [-35, 35]
-    lon = [-230,-80]     
-elif region == "Indian":
-    lat = [-30, 28]
-    lon = [30,79]    
-elif region == "Africa_Ext":
-    lat = [-55, -15]
-    lon = [-5,55]     
+args["str_video"] = str_video 
     
     
 s_train = lag*hist
@@ -205,7 +161,7 @@ N_out = len(outputs)
 num_in = int((hist+1)*N_in + N_extra)
 
 
-inputs, extra_in, outputs = gen_data_025_lateral(inputs,extra_in,outputs,lag,lat,lon,Nb)
+inputs, extra_in, outputs = gen_data_global(inputs,extra_in,outputs,lag)
 
 wet = xr.zeros_like(inputs[0][0])
 # inputs[0][0,12,12] = np.nan
@@ -233,7 +189,7 @@ args["str_ext"] = str_ext
 args["str_out"] = str_out
 args["Nb"] = Nb
 
-args["lateral"] = True
+args["lateral"] = lateral
 os.environ['MASTER_ADDR'] = 'localhost' 
 os.environ['MASTER_PORT'] = str(np.random.randint(1000,1200)) 
 
@@ -250,8 +206,10 @@ os.environ['MASTER_PORT'] = str(np.random.randint(1000,1200))
 data_in_val = gen_data_in(0,e_train,e_test,interval,lag,hist,inputs,extra_in)  
 data_out_val = gen_data_out(0,e_train,e_test,lag,interval,outputs)
 
-val_data = data_CNN_Lateral(data_in_val,data_out_val,wet,N_atm,Nb,device=device)     
-
+if args["lateral"]:
+    val_data = data_CNN_Lateral(data_in_val,data_out_val,wet,N_atm,Nb,device=device,norms = norm_vals) 
+else:
+    val_data = data_CNN_Dynamic(data_in_val,data_out_val,wet,device=device,norms = norm_vals)   
 
 
 args ["load"] = False
@@ -276,7 +234,7 @@ if steps > 12:
     for i in range(steps-12):
         args["step_weights"].append([.05]+args["step_weights"][-1])
 
-args["step_lrs"] = [1e-4,5e-5,1e-5,1e-5,5e-6,5e-6,5e-6,5e-6,5e-6,5e-6,5e-6,5e-6,5e-6,5e-6,5e-6,5e-6,
+args["step_lrs"] = [1e-5,1e-5,1e-5,1e-5,5e-6,5e-6,5e-6,5e-6,5e-6,5e-6,5e-6,5e-6,5e-6,5e-6,5e-6,5e-6,
                     5e-6,5e-6,5e-6,5e-6,5e-6,5e-6,5e-6]
 
 
