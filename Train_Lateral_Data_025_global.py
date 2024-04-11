@@ -153,10 +153,17 @@ print("inputs: " + str_in)
 print("extra inputs: " + str_ext)
 print("outputs: " + str_out)
 
-N_atm = len(extra_in)
-N_in = len(inputs)
-N_extra = N_atm + N_in
-N_out = len(outputs)
+if lateral:
+    
+    N_atm = len(extra_in)
+    N_in = len(inputs)
+    N_extra = N_atm + N_in
+    N_out = len(outputs)
+else:
+    N_atm = len(extra_in)
+    N_in = len(inputs)
+    N_extra = N_atm 
+    N_out = len(outputs)
 
 num_in = int((hist+1)*N_in + N_extra)
 
