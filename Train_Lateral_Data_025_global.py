@@ -127,16 +127,10 @@ extra_dict = {"1":["ur","vr"],"2":["ur","vr","Tm"],
 out_dict = {"1":["um","vm"],"2":["um","vm","Tm"],"3":["ur","vr"],
            "4":["ur","vr","Tr"],"5":["u","v"],"6":["u","v","T"]}
 
-grids = xr.open_dataset('/scratch/zanna/data/CM2_grids/Grid_cm25_Vertices.nc')
+grids = xr.open_dataset('/scratch/zanna/data/CM2_grids/Grid_cm26_Vertices.nc')
 
-if region == "global_25":
-    grids = xr.open_dataset('/scratch/zanna/data/CM2_grids/Grid_cm25_Vertices.nc')
 
-elif "global" in region:
-    grids = coarse_grid(grids,factor)
-
-else:
-    grids = grids.sel({"yu_ocean":slice(lat[0],lat[1]),"xu_ocean":slice(lon[0],lon[1])})
+grids = coarse_grid(grids,10)
 
 
 area = torch.from_numpy(grids["area_C"].to_numpy()).to(device=device)
