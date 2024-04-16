@@ -616,4 +616,127 @@ def worker_vary_steps_data_fast(local_rank,args):
     
     if global_rank ==0 and args["save_model"]:
         torch.save(model.state_dict(),'/scratch/as15415/Emulation/Networks/' + 'U_net_Parallel_Fast_'+args["region"]+'_Test_in_' + args["str_in"] + 'ext_' + args["str_ext"] +'_out'+args['str_out']+'N_train_' + str(args["N_samples"]) + args["str_video"] + '.pt')
+
+
+def worker_3D(local_rank,args):
+
+    global_rank = local_rank*1
+    dist.init_process_group(backend='nccl',world_size=args["World_Size"], rank=global_rank)
+    
+    device = torch.device("cuda:" + str(local_rank) if torch.cuda.is_available() else "cpu")
+    device_name = "cuda:" + str(local_rank)
+    
+    args["area"] = args["area"].to(device)
+    args["area"] = args["area"]/args["area"].min()
+    args['dx'] = args['dx'].to(device)        
+    args['dy'] = args['dy'].to(device)
+    args['wet_lap'] = args['wet_lap'].to(device)
+
+    
+    data_in_train = []
+    data_out_train = []
+    for i in range(args["steps"]):
+        offset = global_rank*args["interval"]
+        data_in_train.append(gen_data_in(i,args["s_train"]+offset,args["e_train"],
+                                         args["interval"]*args["World_Size"],args["lag"],
+                                         args["hist"],args["inputs"][0],args["extra_in"][0]))
+        data_out_train.append(gen_data_out(i,args["s_train"]+offset,args["e_train"],
+                                           args["lag"],args["interval"]*args["World_Size"],
+                                           args["outputs"][0]))
+
+    train_data = data_CNN_steps_Lateral(data_in_train,data_out_train,
+                     args["steps"],args["wet"],args["N_atm"],args["Nb"],
+                                        device=device,norms=args["norm_vals"],N_vars=args["N_var"])  
+    for k in range(1,len(args["inputs"])):
+        data_in_train = []
+        data_out_train = []
+
+        for i in range(args["steps"]):
+            data_in_train.append(gen_data_in(i,args["s_train"]+offset,args["e_train"],
+                                         args["interval"]*args["World_Size"],args["lag"],
+                                         args["hist"],args["inputs"][k],args["extra_in"][k]))
+            data_out_train.append(gen_data_out(i,args["s_train"]+offset,args["e_train"],
+                                           args["lag"],args["interval"]*args["World_Size"],
+                                           args["outputs"][k]))
+
+
+        train_data_temp = data_CNN_steps_Lateral(data_in_train,data_out_train,
+                                                 args["steps"],args["wet"],args["N_atm"],args["Nb"]
+                                                 ,device=device,norms=args["norm_vals"],N_vars=args["N_var"])       
+
+        for j in range(len(train_data_temp.input)):
+            train_data.input[j] = torch.concat((train_data.input[j],train_data_temp.input[j]),dim=0)
+            train_data.output[j] = torch.concat((train_data.output[j],train_data_temp.output[j]),dim=0)
+        train_data.size = train_data.size + train_data_temp.size    
+    
+    val_data = args["val_data"]
+
+    
+    dist.barrier()
+    
+    train_sampler = torch.utils.data.distributed.DistributedSampler(
+    train_data,
+    num_replicas=1,
+    rank=0
+    )
+    
+    test_sampler = torch.utils.data.distributed.DistributedSampler(
+    val_data,
+    num_replicas=args["World_Size"],
+    rank=global_rank
+    )
+    
+    train_loader = torch_geometric.loader.DataLoader(train_data, batch_size=args["batch_size"], sampler=train_sampler)
+    test_loader = torch_geometric.loader.DataLoader(val_data, batch_size=args["batch_size"], sampler=test_sampler)
+
+    args["wet"] = [args["wet"][i].to(device) for i in range(len(args["wet"]))]
+    
+    if args["network"] == "U_net":
+        model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(U_net_3D([args["num_in"],64,128,256,512],
+                                                                   args["N_out"],args["wet"],args["N_var"]).to(device))
+    elif args["network"] == "Transformer":
+        model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(VisionTransformer_3D(wet = args["wet"],
+            N_var=args["N_var"],
+            in_channels=args["num_in"],
+            patch_size=8, 
+            emb_size=768, 
+            num_layers=6, 
+            num_heads=8, 
+            output_channels=args["N_in"], 
+            img_size=[*train_data[0][0].shape[1:]]).to(device))
+        
+        
+    lam = args["lam"]
+    mse = torch.nn.MSELoss()
+    if args["loss_type"] == "Enstrophy":
+        loss = lambda out,pred:  mse(out,pred)*(1-lam) + loss_enstrophy(out,pred,args['dx'],args['dy'],args['Nb'],args['wet_lap'])*lam+ loss_KE_pointwise(out,pred,len(args["wet_lap"]))*.05
+    elif args["loss_type"] == "Vorticity":
+        loss = lambda out,pred:  mse(out,pred)*(1-lam) + loss_vort(out,pred,args['dx'],args['dy'],args['Nb'],args['wet_lap'])*lam        
+    else:
+        loss = lambda out,pred:  mse(out,pred)*(1-lam) + loss_KE_pointwise(out,pred,len(args["wet_lap"]))*lam
+    
+    
+    
+    for k in range(args["steps"]):
+        step_weights = args["step_weights"][k]
+        lr = args["step_lrs"][k]
+        optimizer = torch.optim.Adam(model.parameters(),weight_decay=1e-4, lr=lr)
+
+        for epoch in range(args["epochs"]):
+            train_sampler.set_epoch(int(epoch+k*args["epochs"]))
+            test_sampler.set_epoch(int(epoch+k*args["epochs"]))
+            
+            train_parallel_Dynamic(model, train_loader,args["N_in"],args["N_extra"],
+                           args["hist"],loss, optimizer,k,step_weights,device)
+
+            v_loss = test_parallel_Dynamic(model,test_loader,device)
+
+            torch.distributed.all_reduce(v_loss/args["World_Size"],op= dist.ReduceOp.SUM)
+
+            if global_rank ==0:
+                print("Epoch = {:2d}, Validation Loss = {:5.3f}".format(epoch+1,v_loss),flush=True)
+
+    
+    if global_rank ==0 and args["save_model"]:
+        torch.save(model.state_dict(),'/scratch/as15415/Emulation/Networks/'+args["network"]+'_3D_'+args["region"]+'_in_' + args["str_in"] + 'ext_' + args["str_ext"] +'_out'+args['str_out']+'N_train_' + str(args["N_samples"]) + args["str_video"] + '.pt') 
         
