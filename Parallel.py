@@ -583,7 +583,7 @@ def worker_vary_steps_data_fast(local_rank,args):
         model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(U_net_RK([args["num_in"],64,128,256,512],args["N_in"],args["wet"].to(device)).to(device)) 
     elif args["network"] == "U_net_Global":
         model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(U_net([args["num_in"],256,128,64],
-                                                                    args["N_in"],args["wet"].to(device),pad =         
+                                                                    args["N_in"],args["wet"].to(device),pad = "circular"))        
     elif args["network"] == "U_net_PEC":
         model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(U_net_PEC([args["num_in"],64,128,256,512],args["N_in"],args["wet"].to(device)).to(device))   
         
