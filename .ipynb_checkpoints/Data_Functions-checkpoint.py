@@ -766,3 +766,51 @@ def gen_data_025_lateral_3D(input_vars,extra_vars,output_vars,depth_list,lag,lat
     outputs = tuple(outputs)
 
     return inputs, extra_in, outputs
+
+def gen_data_3d(input_vars,extra_vars,output_vars,lag,factor,region = "Kuroshio"):
+    var_dict = {"um":"u_mean","vm":"v_mean","Tm":"T_mean",
+                "ur":"u_res","vr":"v_res","Tr":"T_res",
+               "u":"u","v":"v","T":"T",
+               "tau_u":"tau_u","tau_v":"tau_v","tau":"tau",
+               "t_ref":"t_ref"}
+    dic_new = dict()
+    for j in range(1,4):
+        for i in var_dict:
+            if i[0] == "t":
+                continue
+            else:
+                dic_new[i+str(j)] = var_dict[i][:1] +str(j)+var_dict[i][1:]
+
+    var_dict.update(dic_new)
+    data_3d = xr.open_zarr("/scratch/as15415/Data/Emulation_Data/Velocities_3d_"+region+"_Factor_"+str(factor)+".zarr/")
+    data_temp_3d = xr.open_zarr("/scratch/as15415/Data/Emulation_Data/Temperature_3d_"+region+"_Factor_"+str(factor)+".zarr/")
+    time_slice = data_3d.time
+    data = xr.open_zarr("/scratch/as15415/Data/Emulation_Data/Velocities_"+region+"_Factor_"+str(factor)+".zarr/").sel(time=time_slice)
+    data_temp = xr.open_zarr("/scratch/as15415/Data/Emulation_Data/Temperature_"+region+"_Factor_"+str(factor)+".zarr/").sel(time=time_slice)
+    data_atmos = xr.open_zarr("/scratch/as15415/Data/Emulation_Data/Data_Atmos_"+region+".zarr/").sel(time=time_slice)
+    data_atmos = data_atmos.rename_dims({"lat":"yu_ocean","lon":"xu_ocean"}).sel(time=time_slice)
+    data_atmos = data_atmos.rename({"lat":"yu_ocean","lon":"xu_ocean"}).sel(time=time_slice)
+    
+    data_temp["xu_ocean"] = data.xu_ocean.data
+    data_temp["yu_ocean"] = data.yu_ocean.data
+    
+    data = xr.merge([data,data_3d,data_temp,data_temp_3d,data_atmos])
+    
+    inputs = []
+    extra_in = []
+    outputs = []
+    
+    for var in input_vars:
+        inputs.append(data[var_dict[var]])
+
+    for var in extra_vars:
+        extra_in.append(data[var_dict[var]])
+        
+    for var in output_vars:
+        outputs.append(data[var_dict[var]][lag:])
+        
+    inputs = tuple(inputs)
+    extra_in = tuple(extra_in)
+    outputs = tuple(outputs)
+
+    return inputs, extra_in, outputs
