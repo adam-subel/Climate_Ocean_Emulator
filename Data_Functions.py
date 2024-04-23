@@ -767,47 +767,70 @@ def gen_data_025_lateral_3D(input_vars,extra_vars,output_vars,depth_list,lag,lat
 
     return inputs, extra_in, outputs
 
-def gen_data_3d(input_vars,extra_vars,output_vars,lag,factor,region = "Kuroshio"):
+def gen_data_025_3D(input_vars,extra_vars,output_vars,depth_list,lag,lat,lon,run_type = ""):
     var_dict = {"um":"u_mean","vm":"v_mean","Tm":"T_mean",
                 "ur":"u_res","vr":"v_res","Tr":"T_res",
                "u":"u","v":"v","T":"T",
                "tau_u":"tau_u","tau_v":"tau_v","tau":"tau",
                "t_ref":"t_ref"}
-    dic_new = dict()
-    for j in range(1,4):
-        for i in var_dict:
-            if i[0] == "t":
-                continue
-            else:
-                dic_new[i+str(j)] = var_dict[i][:1] +str(j)+var_dict[i][1:]
 
-    var_dict.update(dic_new)
-    data_3d = xr.open_zarr("/scratch/as15415/Data/Emulation_Data/Velocities_3d_"+region+"_Factor_"+str(factor)+".zarr/")
-    data_temp_3d = xr.open_zarr("/scratch/as15415/Data/Emulation_Data/Temperature_3d_"+region+"_Factor_"+str(factor)+".zarr/")
-    time_slice = data_3d.time
-    data = xr.open_zarr("/scratch/as15415/Data/Emulation_Data/Velocities_"+region+"_Factor_"+str(factor)+".zarr/").sel(time=time_slice)
-    data_temp = xr.open_zarr("/scratch/as15415/Data/Emulation_Data/Temperature_"+region+"_Factor_"+str(factor)+".zarr/").sel(time=time_slice)
-    data_atmos = xr.open_zarr("/scratch/as15415/Data/Emulation_Data/Data_Atmos_"+region+".zarr/").sel(time=time_slice)
-    data_atmos = data_atmos.rename_dims({"lat":"yu_ocean","lon":"xu_ocean"}).sel(time=time_slice)
-    data_atmos = data_atmos.rename({"lat":"yu_ocean","lon":"xu_ocean"}).sel(time=time_slice)
+    if run_type != "":
+        run_type = "_" + run_type
+
+    N_start = 0
+    merge = False
+
+    with dask.config.set(**{'array.slicing.split_large_chunks': True}):
+
+        if depth_list[0] == "0":
+            data_surf = xr.open_zarr("/scratch/as15415/Data/Emulation_Data/Global_Ocean_025deg"+run_type+".zarr").sortby("time")
+            N_start = 1
+            for var in data_surf.variables:
+                if var not in ["xu_ocean","yu_ocean","time"]:
+                    data_surf = data_surf.rename({var:var +"_0"})    
+        for depth in depth_list[N_start:]:
+            data_temp = xr.open_zarr("/scratch/as15415/Data/Emulation_Data/Global_Ocean_025deg"+run_type+"_depth_"+depth+".zarr").sortby("time").isel(yu_ocean=slice(0,-1))
+            for var in data_temp.variables:
+                if var not in ["xu_ocean","yu_ocean","time"]:
+                    data_temp = data_temp.rename({var:var +"_"+depth})
+            if merge:
+                data = xr.merge([data,data_temp])
+            else:
+                merge = True
+                data = data_temp.copy()
+
+        try:
+            data_atmos = xr.open_zarr("/scratch/as15415/Data/Emulation_Data/Data_Atmos_025_deg"+run_type+".zarr").drop(["xu_ocean","T_mean"]).assign_coords({"lon":data.xu_ocean.data}).sortby("time")
+        except:
+            data_atmos = xr.open_zarr("/scratch/as15415/Data/Emulation_Data/Data_Atmos_025_deg"+run_type+".zarr").sortby("time")        
+
+        data_atmos = data_atmos.rename_dims({"lat":"yu_ocean","lon":"xu_ocean"})
+        data_atmos = data_atmos.rename({"lat":"yu_ocean","lon":"xu_ocean"})    
+
+        data = data.sel(time=slice(data_atmos.time[0],data_atmos.time[-1]))
+        data_atmos = data_atmos.sel(time=slice(data.time[0],data.time[-1]))
+        data_atmos = data_atmos.sel(time = data.time)
+
+        if depth_list[0] == "0":
+            data_surf = data_surf.sel(time = data.time)
+            data = xr.merge([data,data_atmos,data_surf])
+        else:
+            data = xr.merge([data,data_atmos])
     
-    data_temp["xu_ocean"] = data.xu_ocean.data
-    data_temp["yu_ocean"] = data.yu_ocean.data
-    
-    data = xr.merge([data,data_3d,data_temp,data_temp_3d,data_atmos])
+    data = data.sel(yu_ocean=slice(lat[0],lat[1]),xu_ocean=slice(lon[0],lon[1]))
     
     inputs = []
     extra_in = []
     outputs = []
-    
-    for var in input_vars:
-        inputs.append(data[var_dict[var]])
 
     for var in extra_vars:
-        extra_in.append(data[var_dict[var]])
-        
-    for var in output_vars:
-        outputs.append(data[var_dict[var]][lag:])
+        extra_in.append(data[var_dict[var]])    
+    for depth in depth_list:
+        for var in input_vars:
+            inputs.append(data[var_dict[var]+"_"+depth])
+
+        for var in output_vars:
+            outputs.append(data[var_dict[var]+"_"+depth][lag:])
         
     inputs = tuple(inputs)
     extra_in = tuple(extra_in)
