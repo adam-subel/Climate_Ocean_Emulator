@@ -143,10 +143,10 @@ out_dict = {"1":["um","vm"],"2":["um","vm","Tm"],"3":["ur","vr"],
            "4":["ur","vr","Tr"],
            "5":["um1","vm1","Tm1"],"6":["um1","vm1","Tm1","um2","vm2","Tm2"]}
 
-grids = xr.open_dataset('/scratch/zanna/data/CM2_grids/Grid_cm26_Vertices.nc')
+grids = xr.open_dataset('/scratch/as15415/Data/CM2x_grids/Grid_cm26_Vertices.nc')
 
 if region == "global_25":
-    grids = xr.open_dataset('/scratch/zanna/data/CM2_grids/Grid_cm25_Vertices.nc')
+    grids = xr.open_dataset('/scratch/as15415/Data/CM2x_grids/Grid_cm25_Vertices.nc')
 
 elif "global" in region:
     grids = coarse_grid(grids,factor)
@@ -185,7 +185,7 @@ if "global" in region:
     inputs, extra_in, outputs = gen_data_global(inputs,extra_in,outputs,lag,factor_str)
         
 else:
-    inputs, extra_in, outputs = gen_data_3d(inputs,extra_in,outputs,lag,factor,region)
+    inputs, extra_in, outputs = gen_data_025_3D(str_in,str_ext,str_out,depth_list,lag,lat,lon)
 
 wet = xr.zeros_like(inputs[0][0])
 # inputs[0][0,12,12] = np.nan

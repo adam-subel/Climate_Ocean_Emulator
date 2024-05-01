@@ -613,8 +613,11 @@ def compute_heat_flux(N_eval,test_data,model_pred,dx,dy):
     
     return flux_u, flux_v, flux_true_u, flux_true_v
 
-def compute_KE(N_eval,test_data,model_pred,area,wet):
-    N_in = model_pred.shape[-1]
+def compute_KE(N_eval,test_data,model_pred,area,wet, depth=[]):
+    start = 0
+    if len(depth)!=0:
+        start, end = depth
+    N_in = 3 
 
     KE = np.zeros((N_eval,))
     auto_KE = np.zeros((N_eval,))
@@ -624,15 +627,15 @@ def compute_KE(N_eval,test_data,model_pred,area,wet):
     area_flat = np.array(area[wet].flatten())
     
     for i in range(N_eval):
-        KE_u = (area_flat*(model_pred[i,wet,0]**2).flatten()).sum()/area_flat.sum()
-        KE_v = (area_flat*(model_pred[i,wet,1]**2).flatten()).sum()/area_flat.sum()
+        KE_u = (area_flat*(model_pred[i,wet,start]**2).flatten()).sum()/area_flat.sum()
+        KE_v = (area_flat*(model_pred[i,wet,start+1]**2).flatten()).sum()/area_flat.sum()
 
         KE[i] =  .5*(KE_u+KE_v)
 
 
 
-        autoKE_u = (area_flat*(data_out_cpu[i,0,wet]**2).flatten()).sum()/area_flat.sum()
-        autoKE_v = (area_flat*(data_out_cpu[i,1,wet]**2).flatten()).sum()/area_flat.sum()
+        autoKE_u = (area_flat*(data_out_cpu[i,start,wet]**2).flatten()).sum()/area_flat.sum()
+        autoKE_v = (area_flat*(data_out_cpu[i,start+1,wet]**2).flatten()).sum()/area_flat.sum()
 
         auto_KE[i] =  .5*(autoKE_u+autoKE_v)
 
@@ -689,26 +692,35 @@ def compute_activity(N_eval,test_data,model_pred,clim,time,area,wet):
 
 
 
-def gen_enstrophy(N_eval,test_data,model_pred,dx,dy,Nb,wet_lap):
+def gen_enstrophy(N_eval,test_data,model_pred,dx,dy,Nb,wet_lap, depth=[]):
+    start = 0
+    if len(depth) != 0:
+        start, end = depth
     data_out_cpu = np.array(test_data[:][1].cpu())*np.expand_dims(test_data.norm_vals['s_out'],[0,2,3])  + np.expand_dims(test_data.norm_vals['m_out'],[0,2,3])    
-    pred_vort = compute_vorticity(model_pred[:N_eval,:,:,0],model_pred[:N_eval,:,:,1],dx,dy,Nb,wet_lap)
+    pred_vort = compute_vorticity(model_pred[:N_eval,:,:,start],model_pred[:N_eval,:,:,start+1],dx,dy,Nb,wet_lap)
     pred_enst = pred_vort ** 2
-    true_vort = compute_vorticity(data_out_cpu[:N_eval,0],data_out_cpu[:N_eval,1],dx,dy,Nb,wet_lap)
+    true_vort = compute_vorticity(data_out_cpu[:N_eval,start],data_out_cpu[:N_eval,start+1],dx,dy,Nb,wet_lap)
     true_enst = true_vort ** 2        
     return pred_enst, true_enst
 
-def gen_vorticity(N_eval,test_data,model_pred,dx,dy,Nb,wet_lap):
+def gen_vorticity(N_eval,test_data,model_pred,dx,dy,Nb,wet_lap, depth = []):
+    start = 0
+    if len(depth) != 0:
+        start, end = depth
     data_out_cpu = np.array(test_data[:][1].cpu())*np.expand_dims(test_data.norm_vals['s_out'],[0,2,3])  + np.expand_dims(test_data.norm_vals['m_out'],[0,2,3])    
-    pred_vort = compute_vorticity(model_pred[:N_eval,:,:,0],model_pred[:N_eval,:,:,1],dx,dy,Nb,wet_lap)
-    true_vort = compute_vorticity(data_out_cpu[:N_eval,0],data_out_cpu[:N_eval,1],dx,dy,Nb,wet_lap)
+    pred_vort = compute_vorticity(model_pred[:N_eval,:,:,start],model_pred[:N_eval,:,:,start+1],dx,dy,Nb,wet_lap)
+    true_vort = compute_vorticity(data_out_cpu[:N_eval,start],data_out_cpu[:N_eval,start+1],dx,dy,Nb,wet_lap)
     return pred_vort, true_vort
 
 
-def gen_KE(N_eval,test_data,model_pred):
+def gen_KE(N_eval,test_data,model_pred, depth=[]):
+    start = 0
+    if len(depth) != 0:
+        start, end = depth
     rho = 1.2e3
     data_out_cpu = np.array(test_data[:][1].cpu())*np.expand_dims(test_data.norm_vals['s_out'],[0,2,3])  + np.expand_dims(test_data.norm_vals['m_out'],[0,2,3])    
-    pred_KE = (model_pred[:N_eval,:,:,0]**2+model_pred[:N_eval,:,:,1]**2)*.5*rho
-    true_KE = (data_out_cpu[:N_eval,0]**2+data_out_cpu[:N_eval,1]**2)*.5*rho
+    pred_KE = (model_pred[:N_eval,:,:,start]**2+model_pred[:N_eval,:,:,start+1]**2)*.5*rho
+    true_KE = (data_out_cpu[:N_eval,start]**2+data_out_cpu[:N_eval,start+1]**2)*.5*rho
     return pred_KE, true_KE
 
 def compute_corrs_single(N_eval,test_data,model_pred,area,wet,std,mean):
@@ -765,8 +777,8 @@ def compute_ACC_single(N_eval,test_data,model_pred,clim,time,area,wet):
 
     for i in range(N_eval):
         day = int(time[i].dayofyr-1)
-        model_pred[i,:,:] -= clim[day,:,:].squeeze()
-        test_data[i] -= clim[day,:,:].squeeze()
+        model_pred[i,:,:] -= clim[min(day,i),:,:].squeeze()
+        test_data[i] -= clim[min(day,i),:,:].squeeze()
         cor_u = (area_flat*model_pred[i,wet].flatten()*test_data[i,wet].flatten()).sum()/np.sqrt((area_flat*model_pred[i,wet].flatten()**2).sum()*(area_flat*test_data[i,wet].flatten()**2).sum())
 
         corrs[i] =  cor_u
@@ -777,27 +789,34 @@ def compute_ACC_single(N_eval,test_data,model_pred,clim,time,area,wet):
         
     return corrs,auto_corrs
 
-def gen_KE_spectrum(N_eval,test_data,model_pred,grids,wet):
+def gen_KE_spectrum(N_eval,test_data,model_pred,grids,wet, depth = []):
+    start = 0
+    if len(depth)!=0:
+        start, end = depth
     std_out = test_data.norm_vals['s_out']
     mean_out = test_data.norm_vals['m_out']
-    u_test = test_data[:][1][:,0]*std_out[0] +mean_out[0]
-    v_test = test_data[:][1][:,1]*std_out[1] +mean_out[1]
+    
+    u_test = test_data[:][1][:,start]*std_out[start] +mean_out[start]
+    v_test = test_data[:][1][:,start+1]*std_out[start+1] +mean_out[start+1]
 
     region_fft = get_domain_fft(wet)
     dx_fft = grids["dxu"][region_fft[2]:region_fft[3],region_fft[0]:region_fft[1]]
     dy_fft = grids["dyu"][region_fft[2]:region_fft[3],region_fft[0]:region_fft[1]]
-
-    KE_spec = KE_spectrum_long(dx_fft,dy_fft,model_pred[:N_eval,region_fft[2]:region_fft[3],region_fft[0]:region_fft[1],0]
-                     ,model_pred[:N_eval,region_fft[2]:region_fft[3],region_fft[0]:region_fft[1],1])
-    KE_spec_true = KE_spectrum_long(dx_fft,dy_fft,u_test[:N_eval,region_fft[2]:region_fft[3],region_fft[0]:region_fft[1]]
-                     ,v_test[:N_eval,region_fft[2]:region_fft[3],region_fft[0]:region_fft[1]])
+    
+    KE_spec = KE_spectrum_long(dx_fft,dy_fft,model_pred[:N_eval, region_fft[2]:region_fft[3], region_fft[0]:region_fft[1], start]
+                         ,model_pred[:N_eval, region_fft[2]:region_fft[3], region_fft[0]:region_fft[1], start+1])
+    KE_spec_true = KE_spectrum_long(dx_fft,dy_fft,u_test[:N_eval, region_fft[2]:region_fft[3], region_fft[0]:region_fft[1]]
+                         ,v_test[:N_eval,region_fft[2]:region_fft[3], region_fft[0]:region_fft[1]])
     return KE_spec, KE_spec_true
 
 
-def gen_enstrophy_spectrum(N_eval,test_data,model_pred,grids,wet,wet_lap,Nb=4):
+def gen_enstrophy_spectrum(N_eval,test_data,model_pred,grids,wet,wet_lap,Nb=4, depth = []):
+    start = 0
+    if len(depth) != 0:
+        start, end = depth
     dx = grids["dxu"].to_numpy()
     dy = grids["dyu"].to_numpy()
-    pred_vort, true_vort = gen_vorticity(1000,test_data,model_pred,dx,dy,4,wet_lap)
+    pred_vort, true_vort = gen_vorticity(1000,test_data,model_pred,dx,dy,4,wet_lap, depth)
     region_fft = get_domain_fft(wet[Nb:-Nb,Nb:-Nb])
     dx_fft = grids["dxu"][Nb:-Nb,Nb:-Nb][region_fft[2]:region_fft[3],region_fft[0]:region_fft[1]]
     dy_fft = grids["dyu"][Nb:-Nb,Nb:-Nb][region_fft[2]:region_fft[3],region_fft[0]:region_fft[1]]

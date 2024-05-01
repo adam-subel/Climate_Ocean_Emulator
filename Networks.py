@@ -191,7 +191,15 @@ def loss_KE_zonal(data,out,area):
 
 def loss_KE_pointwise(data,out):
     return ((data[:,:2]**2 - out[:,:2]**2)**2).mean() 
-
+'''
+def loss_KE_pointwise(data,out, N_level = 1):
+    loss = ((data[:,0]**2+data[:,1]**2 - out[:,0]**2-out[:,1]**2)**2).mean() 
+    for i in range(1,N_level):
+        KE_true = out[:,int(3*i)]**2+out[:,int(3*i+1)]**2
+        KE_pred = data[:,int(3*i)]**2+data[:,int(3*i+1)]**2
+        loss +=((KE_true - KE_pred)**2).mean()
+    return loss
+'''
 def loss_KE_pointwise_area(data,out,area):
     return ((((data[:,:2]**2).sum(dim=1) - (out[:,:2]**2).sum(dim=1))**2)*area).sum()/area.sum()
 
@@ -551,5 +559,65 @@ class U_net_PEC(torch.nn.Module):
         fts_2[:,:self.num_out] = fts_2[:,:self.num_out] + 1/2*f1
         f2 = self.step(fts_2)
         return torch.mul(u + f2,self.wet)  
+    
+class U_net_3D(torch.nn.Module):
+    def __init__(self,ch_width,n_out,wet,n_var,kernel_size = 3,pad = "constant"):
+        super().__init__()
+        self.N_in = ch_width[0]
+        self.N_out = ch_width[-1]
+        self.wet = wet
+        self.N_pad = int((kernel_size-1)/2)
+        self.pad = pad
+        self.N_depth = len(wet)
+        self.N_var = n_var
+
+        # going down
+        layers = []
+        for a,b in pairwise(ch_width):
+            layers.append(Conv_block(a,b,pad=pad))
+            layers.append(nn.MaxPool2d(2))
+        layers.append(Conv_block(b,b,pad=pad))    
+        layers.append(nn.Upsample(scale_factor=2, mode='bilinear'))
+        ch_width.reverse()
+        for a,b in pairwise(ch_width[:-1]):
+            layers.append(Conv_block(a,b,pad=pad))
+            layers.append(nn.Upsample(scale_factor=2, mode='bilinear'))
+        layers.append(Conv_block(b,b,pad=pad))    
+        layers.append(torch.nn.Conv2d(b,n_out,kernel_size))
+
+        
+        self.layers = nn.ModuleList(layers)
+        self.num_steps = int(len(ch_width)-1)
+        
+        #self.layers = nn.ModuleList(layer)
+
+    def forward(self,fts):
+        temp = []
+        for i in range(self.num_steps):
+            temp.append(None)
+        count = 0
+        for l in self.layers:
+            crop = fts.shape[2:]
+            if isinstance(l,nn.Conv2d):
+                fts = torch.nn.functional.pad(fts,(self.N_pad,self.N_pad,0,0),mode=self.pad)
+                fts = torch.nn.functional.pad(fts,(0,0,self.N_pad,self.N_pad),mode="constant")
+            fts= l(fts)
+            if count < self.num_steps:
+                if isinstance(l,Conv_block):
+                    temp[count] = fts
+                    count += 1
+            elif count >= self.num_steps:
+                if isinstance(l,nn.Upsample):
+                    crop = np.array(fts.shape[2:])
+                    shape = np.array(temp[int(2*self.num_steps-count-1)].shape[2:])
+                    pads = (shape - crop)
+                    pads = [pads[1]//2, pads[1]-pads[1]//2,
+                            pads[0]//2, pads[0]-pads[0]//2]
+                    fts = nn.functional.pad(fts,pads)
+                    fts += temp[int(2*self.num_steps-count-1)]
+                    count += 1
+        for i in range(self.N_depth):
+            fts[:,i*self.N_var:self.N_var*(i+1)] = torch.mul(fts[:,i*self.N_var:self.N_var*(i+1)],self.wet[i])
+        return fts   
     
     

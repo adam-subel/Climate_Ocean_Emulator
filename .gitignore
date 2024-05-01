@@ -1,0 +1,6 @@
+__pycache__/
+slurm/
+*.err
+*.out
+*.png
+plots/

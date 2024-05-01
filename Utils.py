@@ -154,13 +154,19 @@ def compute_laplacian_wet(T,Nb):
     return lap
 
 def compute_vorticity(u,v,dx,dy,Nb,wet_lap):
+        
     h = .5/dx[Nb:-Nb,Nb:-Nb]
     k = .5/dy[Nb:-Nb,Nb:-Nb]
+    
+    if not isinstance(h, np.ndarray):
+        h = h.numpy()
+    if not isinstance(k, np.ndarray):
+        k = k.numpy()
     vort = (v[:,Nb:-Nb,Nb+1:-(Nb-1)] - v[:,Nb:-Nb,Nb-1:-(Nb+1)])*h + \
     (u[:,Nb+1:-(Nb-1),Nb:-Nb] - u[:,Nb-1:-(Nb+1),Nb:-Nb])*k
-    return vort*wet_lap
+    return vort*wet_lap.numpy()
 
-def get_domain_fft(wet):
+def get_domain_fft(wet,):
     region_wet = [0,0,0,0]
         
     for i in range(500):
