@@ -432,7 +432,7 @@ def gen_data(input_vars,extra_vars,output_vars,lag,factor,region = "Kuroshio"):
 
 
 
-def gen_data_global(input_vars,extra_vars,output_vars,lag,res ="1"):
+def gen_data_global(input_vars,extra_vars,output_vars,lag,run ="1"):
     var_dict = {"um":"u_mean","vm":"v_mean","Tm":"T_mean",
                 "ur":"u_res","vr":"v_res","Tr":"T_res",
                "u":"u","v":"v","T":"T",
@@ -449,6 +449,43 @@ def gen_data_global(input_vars,extra_vars,output_vars,lag,res ="1"):
     
     data_atmos["xu_ocean"] = data.xu_ocean.data
     data_atmos["yu_ocean"] = data.yu_ocean.data    
+    
+    data = xr.merge([data,data_atmos])
+    
+    inputs = []
+    extra_in = []
+    outputs = []
+    
+    for var in input_vars:
+        inputs.append(data[var_dict[var]])
+
+    for var in extra_vars:
+        extra_in.append(data[var_dict[var]])
+        
+    for var in output_vars:
+        outputs.append(data[var_dict[var]][lag:])
+        
+    inputs = tuple(inputs)
+    extra_in = tuple(extra_in)
+    outputs = tuple(outputs)
+
+    return inputs, extra_in, outputs
+
+
+def gen_data_global_new(input_vars,extra_vars,output_vars,lag,run_type =""):
+    var_dict = {"u":"u","v":"v","T":"T",
+               "tau_u":"tau_u","tau_v":"tau_v",
+               "t_ref":"t_ref"}
+    if run_type != "":
+        run_type = "_" + run_type
+    data = xr.open_zarr("/scratch/as15415/Data/Emulation_Data/Global_Ocean_1deg"+run_type+"_New.zarr")
+
+    data_atmos = xr.open_zarr("/scratch/as15415/Data/Emulation_Data/Data_Atmos_1deg"+run_type+"_New.zarr")
+    data_atmos = data_atmos.rename_dims({"lat":"yt_ocean","lon":"xt_ocean"})
+    data_atmos = data_atmos.rename({"lat":"yt_ocean","lon":"xt_ocean"})
+    
+    data_atmos["xu_ocean"] = data.xt_ocean.data
+    data_atmos["yu_ocean"] = data.yt_ocean.data    
     
     data = xr.merge([data,data_atmos])
     

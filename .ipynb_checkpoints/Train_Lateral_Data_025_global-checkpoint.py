@@ -25,9 +25,9 @@ import sys
 import random
 
 
-exp_num_in = 6
+exp_num_in = "10"
 exp_num_extra = sys.argv[2]
-exp_num_out = 10
+exp_num_out = "6"
 
 
 

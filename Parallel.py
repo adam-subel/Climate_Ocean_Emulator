@@ -550,10 +550,10 @@ def worker_vary_steps_data_fast(local_rank,args):
     
     if args["lateral"]:
         train_data = data_CNN_steps_Lateral(data_in_train,data_out_train,
-                                            args["steps"],args["wet"],args["N_atm"],args["Nb"],device=device)  
+                                            args["steps"],args["wet"],args["N_atm"],args["Nb"],device="cpu")  
     else:
         train_data = data_CNN_steps_Dynamic(data_in_train,data_out_train,
-                                            args["steps"],args["wet"],device=device)      
+                                            args["steps"],args["wet"],device="cpu")      
     val_data = args["val_data"]
 
     
@@ -582,8 +582,8 @@ def worker_vary_steps_data_fast(local_rank,args):
     elif args["network"] == "U_net_RK":
         model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(U_net_RK([args["num_in"],64,128,256,512],args["N_in"],args["wet"].to(device)).to(device)) 
     elif args["network"] == "U_net_Global":
-        model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(U_net([args["num_in"],256,128,64],
-                                                                    args["N_in"],args["wet"].to(device),pad = "circular"))        
+        model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(U_net([args["num_in"],64,128,256],
+                                                                    args["N_in"],args["wet"].to(device),pad = "circular")).to(device)        
     elif args["network"] == "U_net_PEC":
         model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(U_net_PEC([args["num_in"],64,128,256,512],args["N_in"],args["wet"].to(device)).to(device))   
         
