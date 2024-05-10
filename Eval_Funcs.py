@@ -707,7 +707,7 @@ def gen_vorticity(N_eval,test_data,model_pred,dx,dy,Nb,wet_lap):
 def gen_KE(N_eval,test_data,model_pred,lag = 1):
     rho = 1.2e3
     data_out_cpu = np.array(test_data[:][1].cpu())*np.expand_dims(test_data.norm_vals['s_out'],[0,2,3])  + np.expand_dims(test_data.norm_vals['m_out'],[0,2,3])    
-    pred_KE = (model_pred[:N_eval,:,:,0]**2+model_pred[:N_eval,:,:,1]**2)*.5*rho
+    pred_KE = (model_pred[:int(N_eval/lag),:,:,0]**2+model_pred[:int(N_eval/lag),:,:,1]**2)*.5*rho
     true_KE = (data_out_cpu[lag-1:N_eval:lag,0]**2+data_out_cpu[lag-1:N_eval:lag,1]**2)*.5*rho
     return pred_KE, true_KE
 
