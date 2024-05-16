@@ -934,3 +934,43 @@ class U_net_3D(torch.nn.Module):
         for i in range(self.N_depth):
             fts[:,i*self.N_var:self.N_var*(i+1)] = torch.mul(fts[:,i*self.N_var:self.N_var*(i+1)],self.wet[i])
         return fts  
+
+
+def gen_data_global_new(input_vars,extra_vars,output_vars,lag,run_type =""):
+    var_dict = {"u":"u","v":"v","T":"T",
+               "tau_u":"tau_u","tau_v":"tau_v",
+               "t_ref":"t_ref"}
+    if run_type != "":
+        run_type = "_" + run_type
+    data = xr.open_zarr("/scratch/as15415/Data/Emulation_Data/Global_Ocean_1deg"+run_type+"_New.zarr")
+
+    data_atmos = xr.open_zarr("/scratch/as15415/Data/Emulation_Data/Data_Atmos_1deg"+run_type+"_New.zarr")
+    data_atmos = data_atmos.rename_dims({"lat":"yt_ocean","lon":"xt_ocean"})
+    data_atmos = data_atmos.rename({"lat":"yt_ocean","lon":"xt_ocean"})
+    
+    data = data.sel(time=slice(data_atmos.time[0],data_atmos.time[-1]))
+    data_atmos = data_atmos.sel(time=slice(data.time[0],data.time[-1]))
+
+    data_atmos["xu_ocean"] = data.xt_ocean.data
+    data_atmos["yu_ocean"] = data.yt_ocean.data    
+    
+    data = xr.merge([data,data_atmos])
+    
+    inputs = []
+    extra_in = []
+    outputs = []
+    
+    for var in input_vars:
+        inputs.append(data[var_dict[var]])
+
+    for var in extra_vars:
+        extra_in.append(data[var_dict[var]])
+        
+    for var in output_vars:
+        outputs.append(data[var_dict[var]][lag:])
+        
+    inputs = tuple(inputs)
+    extra_in = tuple(extra_in)
+    outputs = tuple(outputs)
+
+    return inputs, extra_in, outputs
